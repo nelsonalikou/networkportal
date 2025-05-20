@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:14-alpine  # Use a lightweight Alpine-based PostgreSQL image
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/ # Persist data even if the container is stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: network_portal # The name of the database
+    ports:
+      - "5432:5432" # Expose the port to the host.  Left side is host, right is container
+    healthcheck: # Add a healthcheck
+      test: ["CMD-SHELL", "pg_isready -U postgres -d network_portal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  api:
+    build:
+      context: . # Build from the current directory
+      dockerfile: Dockerfile # Use the Dockerfile in the current directory
+    depends_on:
+      db:
+        condition: service_healthy # Start this service only after the db is healthy
+    volumes:
+      - .:/app # Mount the current directory as a volume
+    ports:
+      - "8000:8000" # Expose the application port
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/network_portal # Use the service name 'db' as the hostname
+      # If you have other environment variables, add them here.  For example:
+      # UVICORN_RELOAD: "1" # Enable auto-reloading during development
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"] # Start the FastAPI application
+
+volumes:
+  postgres_data: # Declare the volume
